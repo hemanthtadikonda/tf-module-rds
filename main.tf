@@ -13,8 +13,8 @@ resource "aws_security_group" "main" {
 
   ingress {
     description      = "rds"
-    from_port        = var.port
-    to_port          = var.port
+    from_port        = var.ingres_port
+    to_port          = var.ingres_port
     protocol         = "tcp"
     cidr_blocks      = var.sg_ingress_cidr
   }
@@ -26,16 +26,31 @@ resource "aws_security_group" "main" {
     ipv6_cidr_blocks = ["::/0"]
   }
 }
+resource "aws_db_parameter_group" "main" {
+  name   = "${local.name_prefix}-pg"
+  family = var.family
+}
+
 
 resource "aws_rds_cluster" "main" {
   cluster_identifier      = "${local.name_prefix}-cluster"
   engine                  = "${local.name_prefix}-cluster"
   engine_version          = var.engine_version
   db_subnet_group_name    = aws_db_subnet_group.main.name
-  database_name           =
-  master_username         = "foo"
-  master_password         = "bar"
+  database_name           = data.aws_ssm_parameter.database_name.value
+  master_username         = data.aws_ssm_parameter.master_username.value
+  master_password         = data.aws_ssm_parameter.master_password.value
   backup_retention_period = var.backup_retention_period
   preferred_backup_window = var.preferred_backup_window
+  db_cluster_parameter_group_name = aws_db_parameter_group.main.name
+}
+
+resource "aws_rds_cluster_instance" "cluster_instances" {
+  count              = var.instance_count
+  identifier         = "${local.name_prefix}-${count.index + 1}"
+  cluster_identifier = aws_rds_cluster.main.id
+  instance_class     = var.instance_class
+  engine             = aws_rds_cluster.main.engine
+  engine_version     = aws_rds_cluster.main.engine_version
 }
 
